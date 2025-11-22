@@ -14,7 +14,7 @@ VIEW_PORT_WIDTH :: 640
 VIEW_PORT_HEIGHT :: 480
 
 TITLE :: "My Window!"
-SPEED :: 300
+SPEED :: 300 // pixels per second
 DIRECTION_LINE_LENGTH :: 20
 
 GL_MAJOR_VERSION :: 4
@@ -25,6 +25,7 @@ PI_2 :: math.PI / 2
 PI_3 :: 3 * math.PI / 2
 DEG_RAD :: math.PI / 180
 FOV :: 90
+
 
 main :: proc() {
 	rl.InitWindow(WIDTH, HEIGHT, TITLE)
@@ -51,42 +52,26 @@ init :: proc() {
 
 }
 
+ButtonKeys :: struct {
+	W, A, S, D: int,
+}
+KEYS: ButtonKeys = {}
+
 handle_inputs :: proc() {
-	delta_time := rl.GetFrameTime()
-	delta_pos := delta_time * SPEED
-	delta_rad := delta_time * 6
-	if rl.IsKeyDown(.A) {
-		pa -= delta_rad
-		if (pa < 0) {
-			pa += 2 * PI
-		}
-		pdx = math.cos(pa)
-		pdy = math.sin(pa)
-	}
-	if rl.IsKeyDown(.D) {
-		pa += delta_rad
-		if (pa > 2 * PI) {
-			pa -= 2 * PI
-		}
-		pdx = math.cos(pa)
-		pdy = math.sin(pa)
-	}
-	if rl.IsKeyDown(.W) {
-		px += pdx * delta_time * SPEED
-		py += pdy * delta_time * SPEED
-	}
-	if rl.IsKeyDown(.S) {
-		px -= pdx * delta_time * SPEED
-		py -= pdy * delta_time * SPEED
-	}
+	KEYS.W = rl.IsKeyDown(.W) ? 1 : 0
+	KEYS.A = rl.IsKeyDown(.A) ? 1 : 0
+	KEYS.S = rl.IsKeyDown(.S) ? 1 : 0
+	KEYS.D = rl.IsKeyDown(.D) ? 1 : 0
+
 }
 
 draw :: proc() {
 	rl.ClearBackground(rl.Color{0x4c, 0x4c, 0x4c, 0xff})
 
 	draw_map()
-	draw_rays_3d()
 	draw_player()
+
+	draw_rays_3d()
 }
 
 px, py: f32
@@ -94,6 +79,55 @@ pa: f32
 pdx, pdy: f32
 
 draw_player :: proc() {
+	// update player position and angle
+	delta_time := rl.GetFrameTime()
+	delta_rad := delta_time * 6
+	if KEYS.A == 1 {
+		pa -= delta_rad
+		if (pa < 0) {
+			pa += 2 * PI
+		}
+		pdx = math.cos(pa)
+		pdy = math.sin(pa)
+	}
+	if KEYS.D == 1 {
+		pa += delta_rad
+		if (pa > 2 * PI) {
+			pa -= 2 * PI
+		}
+		pdx = math.cos(pa)
+		pdy = math.sin(pa)
+	}
+
+	our_map := MAP
+	dx := pdx * delta_time * SPEED
+	dy := pdy * delta_time * SPEED
+	xo: f32 = pdx < 0 ? -20 : 20
+	yo: f32 = pdy < 0 ? -20 : 20
+	tpx: f32
+	tpy: f32
+	if KEYS.W == 1 {
+		tpx = px + dx + xo
+		if our_map[int(py) / MAP_BLOCK_SIZE][int(tpx) / MAP_BLOCK_SIZE] == 0 {
+			px = tpx - xo
+		}
+		tpy = py + dy + yo
+		if our_map[int(tpy) / MAP_BLOCK_SIZE][int(px) / MAP_BLOCK_SIZE] == 0 {
+			py = tpy - yo
+		}
+	}
+	if KEYS.S == 1 {
+		tpx = px - dx - xo
+		if our_map[int(py) / MAP_BLOCK_SIZE][int(tpx) / MAP_BLOCK_SIZE] == 0 {
+			px = tpx + xo
+		}
+		tpy = py - dy - yo
+		if our_map[int(tpy) / MAP_BLOCK_SIZE][int(px) / MAP_BLOCK_SIZE] == 0 {
+			py = tpy + yo
+		}
+	}
+
+
 	// draw player
 	rl.DrawCircleV({px, py}, 4.0, rl.YELLOW)
 
@@ -324,4 +358,8 @@ draw_rays_3d :: proc() {
 
 distance :: proc(ax, ay, bx, by: f32) -> f32 {
 	return math.sqrt(math.pow(bx - ax, 2) + math.pow(by - ay, 2))
+}
+
+fix_angle :: proc(a: int) -> int {
+	return a > 359 ? a - 360 : a < 0 ? a + 360 : a
 }
